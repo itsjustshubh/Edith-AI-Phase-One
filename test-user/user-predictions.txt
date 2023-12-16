@@ -1,0 +1,4 @@
+# Test samples for emotion analysis
+{"heart-rate-bpm": 70, "breathing-rate-breaths-min": 15, "hrv-ms": 60, "skin-temp-c": 31, "emg-mv": 0.2, "bvp-unit": 0.8}
+{"heart-rate-bpm": 80, "breathing-rate-breaths-min": 18, "hrv-ms": 55, "skin-temp-c": 32, "emg-mv": 0.3, "bvp-unit": 0.9}
+# Additional samples can be added here

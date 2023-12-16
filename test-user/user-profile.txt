@@ -1,0 +1,8 @@
+# User profile data
+age: 19
+gender: male
+diet: vegetarian
+sleep-patterns: regular
+family-structure: single
+# Ethnicity is not used in the current analysis
+# ethnicity: Caucasian
