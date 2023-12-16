@@ -62,33 +62,38 @@ def calculate_similarity_score(user_profile, provided_user_details):
             user_value = user_profile[key]
 
             if isinstance(value, int) and isinstance(user_value, int):
-                # Numerical comparison with tolerance
-                tolerance = 5  # years for age, etc.
+                tolerance = 5
                 score += weight * max(0, 1 - abs(value - user_value) / tolerance)
-
             elif isinstance(value, str) and isinstance(user_value, str):
-                # Categorical comparison
                 score += weight if value.lower() == user_value.lower() else 0
-
             elif isinstance(value, datetime.datetime) and isinstance(user_value, datetime.datetime):
-                # Date comparison with a tolerance of days
-                day_tolerance = 365  # one year
+                day_tolerance = 365
                 diff_days = abs((value - user_value).days)
                 score += weight * max(0, 1 - diff_days / day_tolerance)
 
-    normalized_score = score / total_weight if total_weight > 0 else 0
-    return normalized_score
+    return score / total_weight if total_weight > 0 else 0
+
 
 def find_most_suitable_user(provided_user_details, users, data_limit=30000):
+    """
+    Finds the most suitable users based on provided details.
+
+    Args:
+        provided_user_details (dict): User details to match against.
+        users (list): A list of User objects.
+        data_limit (int): The limit on the amount of data to consider.
+
+    Returns:
+        list: A list of tuples containing the user, their score, and data count.
+    """
     user_scores = [(user, calculate_similarity_score(user.profile, provided_user_details)) for user in users]
-    user_scores.sort(key=lambda x: x[1], reverse=True)  # Sort users based on their similarity scores
+    user_scores.sort(key=lambda x: x[1], reverse=True)
 
     top_users = []
     total_data_count = 0
-    data_limit_scale_factor = data_limit / 30000  # Calculate a scaling factor based on the data limit
+    data_limit_scale_factor = data_limit / 30000
 
-    # Adjust score threshold based on data limit
-    score_threshold = 0.5 + 0.25 * data_limit_scale_factor  # Increase threshold as data limit increases
+    score_threshold = 0.5 + 0.25 * data_limit_scale_factor
 
     for user, score in user_scores:
         if total_data_count < data_limit and score > score_threshold:
@@ -97,44 +102,68 @@ def find_most_suitable_user(provided_user_details, users, data_limit=30000):
             total_data_count += user_data_count
 
     if not top_users and user_scores:
-        # If no suitable users are found, choose the closest match
         closest_match = user_scores[0]
         closest_match_data_count = min(len(closest_match[0].physiological_data), data_limit)
         top_users.append((closest_match[0], closest_match[1], closest_match_data_count))
 
     return top_users
 
+
 def clear_screen():
-    # Check if 'TERM' environment variable is set
+    """
+    Clears the terminal screen.
+    """
     if "TERM" in os.environ:
-        if sys.platform == 'win32':
-            os.system('cls')  # For Windows
-        else:
-            os.system('clear')  # For macOS and Linux
+        os.system('cls' if sys.platform == 'win32' else 'clear')
     else:
-        print("\n" * 100)  # Fallback method to clear the screen
+        print("\n" * 100)
+
 
 def display_user_statistics(users, user_index):
-    # Display statistics for a given user
+    """
+    Displays statistics for a given user.
+
+    Args:
+        users (list): A list of User objects.
+        user_index (int): Index of the user in the list.
+    """
     if user_index < 1 or user_index > len(users):
         print("Invalid user index.")
         return
 
-    user = users[user_index - 1]  # Adjust index for 0-based list
+    user = users[user_index - 1]
     print(f"User ID: {user.profile.get('unique-id')}")
-    user.print_statistics()  # Assumes User class has a method print_statistics()
+    user.print_statistics()
+
 
 def test_predictions(user, test_samples):
+    """
+    Tests and prints predictions for a given user and test samples.
+
+    Args:
+        user (User): The user object.
+        test_samples (list): A list of test samples.
+    """
     predictions = EmotionAnalysis.make_predictions_for_user(user, test_samples)
     for sample, prediction in zip(test_samples, predictions):
         print(f"Test Sample: {sample}, Predicted Emotion: {prediction}")
 
+
 def read_user_profile(file_path):
+    """
+    Reads user profile from a text file.
+
+    Args:
+        file_path (str): Path to the file.
+
+    Returns:
+        dict: A dictionary containing the user profile.
+    """
     user_profile = {}
     with open(file_path, 'r') as file:
         for line in file:
             if line.startswith('#') or line.strip() == '':
-                continue  # Skip comments or empty lines
+                continue
             key, value = line.strip().split(': ')
             if value.isdigit():
                 value = int(value)
@@ -143,17 +172,35 @@ def read_user_profile(file_path):
             user_profile[key] = value
     return user_profile
 
+
 def read_test_samples(file_path):
+    """
+    Reads test samples from a text file.
+
+    Args:
+        file_path (str): Path to the file.
+
+    Returns:
+        list: A list of test samples.
+    """
     test_samples = []
     with open(file_path, 'r') as file:
         for line in file:
             if line.startswith('#') or line.strip() == '':
-                continue  # Skip comments or empty lines
+                continue
             sample_data = json.loads(line)
             test_samples.append(sample_data)
     return test_samples
 
+
 def main(directory_path, data_limit=30000):
+    """
+    Main function to execute the application logic.
+
+    Args:
+        directory_path (str): Path to the directory containing user data.
+        data_limit (int): Limit on the amount of data to consider.
+    """
     data_loader = UserDataLoader(directory_path)
     users = data_loader.load_users()
 
@@ -161,7 +208,6 @@ def main(directory_path, data_limit=30000):
         print("No users found in the directory.")
         return
 
-    # Read preferred user details from a file
     user_profile_path = os.path.join("test-user", "user-profile.txt")
     try:
         preferred_user_details = read_user_profile(user_profile_path)
@@ -172,7 +218,6 @@ def main(directory_path, data_limit=30000):
         print(f"Error decoding JSON from the user profile file: {user_profile_path}")
         return
 
-    # Find and display the most suitable users
     suitable_user_info = find_most_suitable_user(preferred_user_details, users, data_limit)
     print("\nSuitable Users:")
     for user, score, data_count in suitable_user_info:
@@ -181,11 +226,9 @@ def main(directory_path, data_limit=30000):
 
     for user, score, data_count in suitable_user_info:
         if not user.emotion_model.is_trained:
-            # Use only the first 'data_count' physiological data points for training
             limited_data = user.physiological_data[:data_count]
             EmotionAnalysis.train_user_model(user, limited_data)
 
-            # Read test samples for emotion analysis
             test_samples_path = os.path.join("test-user", "user-predictions.txt")
             try:
                 test_samples = read_test_samples(test_samples_path)
@@ -199,6 +242,7 @@ def main(directory_path, data_limit=30000):
             print(f"\nAnalytics for User ID: {user.profile.get('unique-id')}")
             user.print_statistics()
             test_predictions(user, test_samples)
+
 
 if __name__ == "__main__":
     directory_path = "sample-users"
