@@ -1,5 +1,6 @@
 from user_data_loader import UserDataLoader
 from emotion_analysis import EmotionAnalysis
+from typing import Callable, Optional
 from user_emotion_model import UserEmotionModel
 import os
 import sys
@@ -86,6 +87,7 @@ def find_most_suitable_user(provided_user_details, users, data_limit=30000):
     Returns:
         list: A list of tuples containing the user, their score, and data count.
     """
+    # print("Finding most suitable users...")
     user_scores = [(user, calculate_similarity_score(user.profile, provided_user_details)) for user in users]
     user_scores.sort(key=lambda x: x[1], reverse=True)
 
@@ -106,6 +108,7 @@ def find_most_suitable_user(provided_user_details, users, data_limit=30000):
         closest_match_data_count = min(len(closest_match[0].physiological_data), data_limit)
         top_users.append((closest_match[0], closest_match[1], closest_match_data_count))
 
+    # print(f"Found {len(top_users)} suitable users.")
     return top_users
 
 
@@ -193,58 +196,120 @@ def read_test_samples(file_path):
     return test_samples
 
 
-def main(directory_path, data_limit=30000):
+def get_analysis_results(suitable_user_info, user_predictions_list, provided_user_details):
+    """
+    Gathers and formats the results of the analysis for frontend display.
+
+    Args:
+        suitable_user_info (list): List of tuples containing the user, their score, and data count.
+        user_predictions_list (list): A list of dictionaries containing user prediction data.
+        provided_user_details (dict): The user details that were used for matching.
+
+    Returns:
+        list: A list of dictionaries with formatted results for each user.
+    """
+    results = []
+    for user, score, data_count in suitable_user_info:
+        matched_features = {k: user.profile[k] for k in provided_user_details if k in user.profile}
+
+        user_result = {
+            "User ID": user.profile.get('unique-id'),
+            "Matched Features": matched_features,
+            "Predictions": []
+        }
+
+        predictions = EmotionAnalysis.make_predictions_for_user(user, user_predictions_list)
+        for sample, prediction in zip(user_predictions_list, predictions):
+            sample_with_prediction = sample.copy()
+            sample_with_prediction["Predicted Emotion"] = prediction
+            user_result["Predictions"].append(sample_with_prediction)
+
+        results.append(user_result)
+
+    return results
+
+
+def main(directory_path, data_limit=30000, user_profile_dict=None, user_predictions_list=None,
+         display_results=False, emit_progress: Optional[Callable[[str], None]] = None):
     """
     Main function to execute the application logic.
 
     Args:
         directory_path (str): Path to the directory containing user data.
         data_limit (int): Limit on the amount of data to consider.
+        user_profile_dict (dict, optional): A dictionary containing the user profile.
+        user_predictions_list (list, optional): A list of dictionaries containing user prediction data.
     """
+    def update_progress(stage: str):
+        if emit_progress:
+            emit_progress(stage)
+        else:
+            print(stage)
+
+    update_progress("Initializing Analysis")
+
+    # Load user data
+    update_progress("Loading User Data")
     data_loader = UserDataLoader(directory_path)
     users = data_loader.load_users()
-
     if not users:
-        print("No users found in the directory.")
+        update_progress("No users found in the directory.")
         return
 
-    user_profile_path = os.path.join("test-user", "user-profile.txt")
-    try:
-        preferred_user_details = read_user_profile(user_profile_path)
-    except FileNotFoundError:
-        print(f"User profile file not found in path: {user_profile_path}")
-        return
-    except json.JSONDecodeError:
-        print(f"Error decoding JSON from the user profile file: {user_profile_path}")
-        return
+    # Read user profile
+    if user_profile_dict is None:
+        update_progress("Reading User Profile")
+        user_profile_path = os.path.join("test-user", "user-profile.txt")
+        try:
+            user_profile_dict = read_user_profile(user_profile_path)
+        except FileNotFoundError:
+            update_progress(f"User profile file not found in path: {user_profile_path}")
+            return
+        except json.JSONDecodeError:
+            update_progress(f"Error decoding JSON from the user profile file: {user_profile_path}")
+            return
 
-    suitable_user_info = find_most_suitable_user(preferred_user_details, users, data_limit)
-    print("\nSuitable Users:")
-    for user, score, data_count in suitable_user_info:
-        print(
-            f"User ID: {user.profile.get('unique-id')}, Score: {score:.2f}, Data Count: {data_count}, Name: {user.profile.get('first-name')} {user.profile.get('last-name')}")
+    # Find most suitable users
+    update_progress("Finding Suitable Users")
+    suitable_user_info = find_most_suitable_user(user_profile_dict, users, data_limit)
 
+    # Read user predictions
+    if user_predictions_list is None:
+        update_progress("Reading User Predictions")
+        test_samples_path = os.path.join("test-user", "user-predictions.txt")
+        try:
+            user_predictions_list = read_test_samples(test_samples_path)
+        except FileNotFoundError:
+            update_progress(f"Test samples file not found in path: {test_samples_path}")
+            return
+        except json.JSONDecodeError:
+            update_progress(f"Error decoding JSON from the test samples file: {test_samples_path}")
+            return
+
+    # Process suitable users and make predictions
+    update_progress("Analyzing Data and Making Predictions")
     for user, score, data_count in suitable_user_info:
         if not user.emotion_model.is_trained:
             limited_data = user.physiological_data[:data_count]
             EmotionAnalysis.train_user_model(user, limited_data)
+            test_predictions(user, user_predictions_list)
 
-            test_samples_path = os.path.join("test-user", "user-predictions.txt")
-            try:
-                test_samples = read_test_samples(test_samples_path)
-            except FileNotFoundError:
-                print(f"Test samples file not found in path: {test_samples_path}")
-                continue
-            except json.JSONDecodeError:
-                print(f"Error decoding JSON from the test samples file: {test_samples_path}")
-                continue
+    # Compile and display results
+    if display_results:
+        update_progress("Compiling Results")
+        results = get_analysis_results(suitable_user_info, user_predictions_list, user_profile_dict)
+        for result in results:
+            print(json.dumps(result, indent=4))  # Pretty print the results
 
-            print(f"\nAnalytics for User ID: {user.profile.get('unique-id')}")
-            user.print_statistics()
-            test_predictions(user, test_samples)
-
+    update_progress("Analysis Complete.")
+    return results if display_results else None
 
 if __name__ == "__main__":
     directory_path = "sample-users"
-    custom_data_limit = 30000
-    main(directory_path, custom_data_limit)
+    custom_data_limit = 100000
+    user_profile = {'age': 19, 'gender': 'female', 'nationality': 'Indian','smoking-habits': 'none','ethnicity':'Indian','sleep-patterns':'regular'}
+    user_predictions = [{"heart-rate-bpm": 60, "breathing-rate-breaths-min": 20, "hrv-ms": 30, "skin-temp-c": 20, "emg-mv": 0.1, "bvp-unit": 0.2},
+                        {"heart-rate-bpm": 80, "breathing-rate-breaths-min": 18, "hrv-ms": 55, "skin-temp-c": 32, "emg-mv": 0.3, "bvp-unit": 0.9}]
+    results = main(directory_path, data_limit=custom_data_limit, user_profile_dict=user_profile,
+                   user_predictions_list=user_predictions, display_results=False)
+    # print(results)
