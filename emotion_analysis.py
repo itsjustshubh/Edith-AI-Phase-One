@@ -11,14 +11,16 @@ class EmotionAnalysis:
         user_models[user_id].train_model(X_train, y_train)
 
     @staticmethod
-    def train_user_model(user, limited_data=None):
+    def train_user_model(user, limited_data=None, update_progress=None):
+        update_progress("Training Custom User Model", {"file": "main.py", "function": "train_user_model"})
         if limited_data is None:
             limited_data = user.physiological_data
 
-        X_train = [format_data(sample) for sample in limited_data]
+        x_train = [format_data(sample) for sample in limited_data]
         y_train = [sample.get('predicted-emotion', 'Undefined') for sample in limited_data]
 
-        user.train_emotion_model(X_train, y_train)
+        update_progress("Training Emotion Model", {"x_train": f'{len(x_train)}', "y_train": f'{len(y_train)}'})
+        user.train_emotion_model(x_train, y_train)
 
     @staticmethod
     def make_predictions_for_user(user, physiological_data_samples):

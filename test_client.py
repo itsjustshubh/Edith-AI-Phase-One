@@ -41,14 +41,14 @@ def send_data():
                 "emg-mv": 0.1,
                 "bvp-unit": 0.2
             },
-            {
-                "heart-rate-bpm": 80,
-                "breathing-rate-breaths-min": 18,
-                "hrv-ms": 55,
-                "skin-temp-c": 32,
-                "emg-mv": 0.3,
-                "bvp-unit": 0.9
-            }
+            # {
+            #     "heart-rate-bpm": 80,
+            #     "breathing-rate-breaths-min": 18,
+            #     "hrv-ms": 55,
+            #     "skin-temp-c": 32,
+            #     "emg-mv": 0.3,
+            #     "bvp-unit": 0.9
+            # }
         ]
     }
     response = requests.post(url, json=data)

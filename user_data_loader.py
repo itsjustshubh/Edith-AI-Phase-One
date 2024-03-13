@@ -5,8 +5,9 @@ import os
 import pandas as pd
 
 class UserDataLoader:
-    def __init__(self, directory_path, db_path=None):
+    def __init__(self, directory_path, update_progress=None, db_path=None):
         self.directory_path = directory_path
+        self.update_progress = update_progress
         self.db_path = db_path
 
     def connect_db(self):
@@ -17,6 +18,7 @@ class UserDataLoader:
             raise FileNotFoundError(f"Directory '{self.directory_path}' does not exist.")
 
         users = []
+        self.update_progress("Loading User Data from Files", {"file": "user_data_loader.py", "function": "load_users"})
         for filename in os.listdir(self.directory_path):
             if filename.endswith('.xlsx'):
                 user_data = pd.read_excel(os.path.join(self.directory_path, filename), sheet_name=None)
@@ -24,16 +26,24 @@ class UserDataLoader:
                 data_sheet = user_data.get('data')
 
                 if user_profile_sheet is None or data_sheet is None:
+                    self.update_progress(f"Skipping file due to missing data: {filename}")
                     continue  # Skip if required data is missing
 
                 user_profile = self._parse_user_profile(user_profile_sheet)
                 physiological_data = self._parse_physiological_data(data_sheet)
                 users.append(User(user_profile, physiological_data))  # Create User instance
+                self.update_progress(f"Processing file: {filename}",
+                                     {"file": "user_data_loader.py", "function": "load_users",
+                                      "user": f"{user_profile.get('first-name')} {user_profile.get('last-name')}",
+                                      "nationality": f"{user_profile.get('nationality')}",
+                                      "data_points": f"{len(physiological_data)}",
+                                      })
 
         if not users:
-            print(f"No user data files found in '{self.directory_path}'.")
+            self.update_progress(f"No user data files found in '{self.directory_path}'.")
             return []
 
+        self.update_progress("User Data Loaded Successfully", {"file": "user_data_loader.py", "function": "load_users", "users": f"{len(users)}"})
         return users
 
     def _parse_user_profile(self, profile_df):
@@ -66,7 +76,7 @@ class UserDataLoader:
         conn.commit()
         conn.close()
 
-    # Add a method to load users from the database
+    # Add a function to load users from the database
     def load_users_from_db(self):
         conn = self.connect_db()
         cursor = conn.cursor()
