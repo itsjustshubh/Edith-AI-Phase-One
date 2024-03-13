@@ -25,7 +25,7 @@ def disconnect():
     print("Disconnected from server.")
 
 def send_data():
-    url = 'http://127.0.0.1:5000/analyze-emotion'
+    url = 'https://emotional-analysis-backend-2fe05a1b127e.herokuapp.com/analyze-emotion'
     data = {
         "data_limit": 10000,
         "user_profile": {
@@ -55,7 +55,7 @@ def send_data():
     print("Status Code:", response.status_code)
     print("Response:", response.json())
 
-sio.connect('http://127.0.0.1:5000')
+sio.connect('https://emotional-analysis-backend-2fe05a1b127e.herokuapp.com')
 threading.Thread(target=send_data).start()
 
 while not analysis_completed:
