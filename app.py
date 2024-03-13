@@ -1,3 +1,4 @@
+import os
 from main import main, get_analysis_results
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -46,4 +47,5 @@ def analyze_emotion():
     return jsonify({'message': 'Analysis started'}), 202
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True, allow_unsafe_werkzeug=True)
+    port = int(os.environ.get('PORT', 5000))
+    socketio.run(app, host='0.0.0.0', port=port, debug=True, allow_unsafe_werkzeug=True)
